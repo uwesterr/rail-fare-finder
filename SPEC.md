@@ -10,7 +10,7 @@ Find the lowest additional rail fare for an origin, destination, and flexible da
 - Accept an origin, a destination, and an inclusive date range. Require valid, distinct stations and a start date on or before the end date.
 - Provide a **Next week** shortcut for the next Monday through Sunday in Europe/Berlin. Accept single-day searches.
 - Provide **I have a Deutschlandticket**, on by default on first launch, and remember the user's choice. With it on, show fully covered journeys at €0 additional cost and price mixed journeys using a verified offer for the uncovered portion. With it off, display through fares where available.
-- Show each day's cheapest known result and the available alternatives. Show departure and arrival times, duration, transfers, fare name when supplied, and additional cost in EUR. Sort known prices ascending, then duration, then departure time. Display unavailable prices explicitly and keep those results out of the cheapest calculation.
+- Highlight the cheapest known fare and fastest journey across the selected dates. Let the user sort each day's journeys by Cheapest (default) or Fastest. Cheapest sorts by fare, duration, then departure. Fastest sorts by elapsed journey time including transfers, then fare, then departure. Show departure and arrival times, duration, transfers, fare name when supplied, and additional cost in EUR. Journeys with unknown fares can still qualify as fastest.
 - Label verified **Super Sparpreis Last Minute** offers from the fare source. Show the next Saturday–Sunday booking window for the relevant Monday–Sunday travel week where applicable. Calculate eligibility in Europe/Berlin and confirm promotion availability from the source.
 - Open the selected search or journey on bahn.de. The app does not purchase tickets.
 
@@ -38,6 +38,7 @@ Use synthetic offers for automated tests. Run the live checks separately with a 
 | T08 Sorting and date coverage | Three dates with differently priced journeys, tied offers, and one failed date | Sort by price, then duration, then departure. The range includes both endpoints. Mark the failed date and describe the cheapest result as the lowest found among successful dates. |
 | T09 Input and empty results | Missing or identical station, reversed range, and a valid search returning no trains | Invalid queries are blocked with a clear message. A valid empty search shows a distinct no-results state. |
 | T10 Sample data and booking handoff | Run the fixture search and open a result | Sample status remains visible. The handoff opens bahn.de with the selected route and date where supported. |
+| T11 Cheapest and fastest | A range containing a slower €0 regional journey, a faster paid journey, and a still faster journey with an unknown fare | Highlight the €0 journey as cheapest and the shortest journey as fastest. Switching the sort reorders each day's rows without rerunning the search. With equal durations, rank lower known fares first, then earlier departures. |
 
 ### Live verification
 

@@ -11,12 +11,35 @@ public struct RankedJourney: Identifiable, Sendable {
     public var id: String { journey.id }
 }
 
+public enum JourneyOrder: String, CaseIterable, Identifiable, Sendable {
+    case cheapest = "Cheapest"
+    case fastest = "Fastest"
+
+    public var id: Self { self }
+
+    fileprivate func ranksBefore(_ left: RankedJourney, _ right: RankedJourney) -> Bool {
+        let leftPrice = left.fare?.cents ?? Int.max
+        let rightPrice = right.fare?.cents ?? Int.max
+        if self == .cheapest && leftPrice != rightPrice { return leftPrice < rightPrice }
+        if left.journey.duration != right.journey.duration {
+            return left.journey.duration < right.journey.duration
+        }
+        if leftPrice != rightPrice { return leftPrice < rightPrice }
+        return left.journey.departure < right.journey.departure
+    }
+}
+
 public struct DayResult: Identifiable, Sendable {
     public let date: Date
     public let journeys: [RankedJourney]
     public let failed: Bool
     public var id: Date { date }
     public var cheapest: RankedJourney? { journeys.first { $0.fare != nil } }
+    public var fastest: RankedJourney? { journeys.min(by: JourneyOrder.fastest.ranksBefore) }
+
+    public func journeys(orderedBy order: JourneyOrder) -> [RankedJourney] {
+        order == .cheapest ? journeys : journeys.sorted(by: order.ranksBefore)
+    }
 }
 
 public struct SearchResults: Sendable {
@@ -24,7 +47,10 @@ public struct SearchResults: Sendable {
     public let isSample: Bool
     public var hasFailedDays: Bool { days.contains(where: \.failed) }
     public var cheapest: RankedJourney? {
-        days.compactMap(\.cheapest).min(by: FareSearch.ranksBefore)
+        days.compactMap(\.cheapest).min(by: JourneyOrder.cheapest.ranksBefore)
+    }
+    public var fastest: RankedJourney? {
+        days.compactMap(\.fastest).min(by: JourneyOrder.fastest.ranksBefore)
     }
 }
 
@@ -45,7 +71,7 @@ public struct FareSearch: Sendable {
                 let offers = try await source.journeys(for: query, on: date, now: now)
                 let ranked = offers.map {
                     RankedJourney(journey: $0, fare: $0.price(hasPass: query.hasPass))
-                }.sorted(by: Self.ranksBefore)
+                }.sorted(by: JourneyOrder.cheapest.ranksBefore)
                 days.append(DayResult(date: date, journeys: ranked, failed: false))
             } catch is CancellationError {
                 throw CancellationError()
@@ -57,15 +83,6 @@ public struct FareSearch: Sendable {
         return SearchResults(days: days, isSample: source.isSample)
     }
 
-    static func ranksBefore(_ left: RankedJourney, _ right: RankedJourney) -> Bool {
-        let leftPrice = left.fare?.cents ?? Int.max
-        let rightPrice = right.fare?.cents ?? Int.max
-        if leftPrice != rightPrice { return leftPrice < rightPrice }
-        if left.journey.duration != right.journey.duration {
-            return left.journey.duration < right.journey.duration
-        }
-        return left.journey.departure < right.journey.departure
-    }
 }
 
 public struct SampleJourneySource: JourneySource {

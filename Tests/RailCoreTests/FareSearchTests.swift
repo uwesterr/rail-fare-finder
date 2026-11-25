@@ -93,6 +93,46 @@ private struct PartialSource: JourneySource {
     #expect(!results.hasFailedDays)
 }
 
+@Test func fastestAndCheapestCanBeDifferent() async throws {
+    let request = try query(first: date(12, 1), last: date(12, 3))
+    let results = try await FareSearch(source: SampleJourneySource()).run(request, now: date(11, 25))
+    let day = try #require(results.days.dropFirst().first)
+    #expect(results.cheapest?.id == "regional")
+    #expect(results.fastest?.id == "express")
+    #expect(results.fastest?.journey.departure == results.days[0].fastest?.journey.departure)
+    #expect(day.journeys(orderedBy: .cheapest).first?.id == "regional")
+    #expect(day.journeys(orderedBy: .fastest).map(\.id) == ["express", "mixed", "regional", "unpriced"])
+}
+
+private struct SpeedSource: JourneySource {
+    let isSample = true
+
+    func journeys(for query: TravelQuery, on day: Date, now: Date) async throws -> [Journey] {
+        let number = berlin.calendar.component(.day, from: day)
+        func offer(_ id: String, _ hour: Int, _ minutes: Int, _ cents: Int?) -> Journey {
+            let departure = date(12, number, hour)
+            return Journey(id: id, departure: departure, arrival: departure.addingTimeInterval(Double(minutes * 60)),
+                           route: "ICE", transfers: 0, coverage: .uncovered,
+                           throughFare: cents.map { Fare(cents: $0) }, uncoveredFare: nil)
+        }
+        return [
+            offer("unpriced", 11, number == 3 ? 30 : 70, nil),
+            offer("earlier", 7, 60, 500),
+            offer("later", 9, 60, 500),
+            offer("expensive", 6, 60, 800)
+        ]
+    }
+}
+
+@Test func fastestIncludesUnknownFaresAndBreaksTies() async throws {
+    let request = try query(first: date(12, 2), last: date(12, 3))
+    let results = try await FareSearch(source: SpeedSource()).run(request, now: date(11, 25))
+    #expect(results.fastest?.id == "unpriced")
+    #expect(results.fastest?.fare == nil)
+    #expect(results.days[0].journeys(orderedBy: .fastest).map(\.id) == ["earlier", "later", "expensive", "unpriced"])
+    #expect(results.cheapest?.id == "earlier")
+}
+
 @Test func sampleFlagAndBookingHandoff() async throws {
     let request = try query()
     let results = try await FareSearch(source: SampleJourneySource()).run(request, now: date(11, 25))
