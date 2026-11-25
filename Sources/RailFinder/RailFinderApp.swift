@@ -22,6 +22,7 @@ private struct SearchView: View {
     @State private var message: String?
     @State private var searchTask: Task<Void, Never>?
     @State private var searching = false
+    @State private var order: JourneyOrder = .cheapest
     private let berlin = RailCalendar()
 
     var body: some View {
@@ -115,10 +116,7 @@ private struct SearchView: View {
     private func resultList(_ results: SearchResults, query: TravelQuery) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if let cheapest = results.cheapest, let fare = cheapest.fare {
-                    let label = results.hasFailedDays ? "Lowest found among successful dates" : "Lowest sample fare"
-                    Text("\(label) · \(price(fare))").font(.headline)
-                }
+                resultSummary(results, query: query)
                 ForEach(results.days) { day in
                     GroupBox {
                         VStack(alignment: .leading, spacing: 10) {
@@ -127,7 +125,7 @@ private struct SearchView: View {
                             } else if day.journeys.isEmpty {
                                 Text("No journeys found in the sample data.")
                             }
-                            ForEach(day.journeys) { offer in
+                            ForEach(day.journeys(orderedBy: order)) { offer in
                                 journeyRow(offer, query: query)
                             }
                             let window = berlin.bookingWindow(for: day.date)
@@ -146,6 +144,30 @@ private struct SearchView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func resultSummary(_ results: SearchResults, query: TravelQuery) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Sort each day by", selection: $order) {
+                ForEach(JourneyOrder.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            if results.hasFailedDays {
+                Text("Highlights reflect the dates that could be checked.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if let cheapest = results.cheapest {
+                Text("Cheapest · \(dateLabel(cheapest.journey.departure))").font(.headline)
+                journeyRow(cheapest, query: query)
+            }
+            if let fastest = results.fastest {
+                Text("Fastest · \(dateLabel(fastest.journey.departure))").font(.headline)
+                journeyRow(fastest, query: query)
+            }
         }
     }
 
